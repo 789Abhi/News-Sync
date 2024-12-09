@@ -1,0 +1,9 @@
+.rdrDefinedRangesWrapper {
+  width: 30%;
+}
+.rdrCalendarWrapper {
+  width: 70%;
+}
+.rdrCalendarWrapper .rdrMonth {
+  width: 100%;
+}
