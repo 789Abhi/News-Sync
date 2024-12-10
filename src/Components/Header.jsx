@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { searchNews, clearSearchResults } from "../redux/newsSlice"; // Adjust import path
 import PreferencesModal from "./PreferencesModal";
 
 function Header({ onCountryChange, onPreferencesSave }) {
@@ -19,9 +21,12 @@ function Header({ onCountryChange, onPreferencesSave }) {
   const [selectedCountry, setSelectedCountry] = useState(countries[0].value);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const location = useLocation();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (onCountryChange) {
       onCountryChange(selectedCountry);
     }
@@ -46,19 +51,29 @@ function Header({ onCountryChange, onPreferencesSave }) {
     setIsPreferencesModalOpen(false);
   };
 
+  const handleSearch = (e) => {
+    e.preventDefault();
+
+    if (!searchTerm.trim()) return;
+
+    dispatch(clearSearchResults());
+    dispatch(searchNews(searchTerm));
+    navigate("/search", { state: { searchTerm } }); // Pass search term in navigation state
+  };
+
   const showSearchInput = location.pathname !== "/search";
-  const showPreferencesButton = location.pathname !== "/search"; // Hide button on search page
+  const showCustomizeFeedButton = location.pathname !== "/search";
+  const showPreferencesButton = location.pathname !== "/search";
 
   return (
-    <header className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 shadow-lg rounded-xl sticky top-4">
+    <header className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 shadow-lg rounded-xl z-50 sticky top-4">
       <div className="container mx-auto flex justify-between items-center">
-        {/* Logo */}
         <Link to="/">
           <h1 className="text-2xl font-bold">NEWS SYNC</h1>
         </Link>
 
-        {/* Conditional Search Input */}
-        <div
+        <form
+          onSubmit={handleSearch}
           className={`flex items-center w-[600px] ${
             !showSearchInput && "hidden"
           }`}
@@ -66,18 +81,28 @@ function Header({ onCountryChange, onPreferencesSave }) {
           <input
             type="text"
             placeholder="Search articles..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="p-2 rounded-md text-gray-800 h-10 shadow-sm w-full"
           />
-        </div>
+          <button
+            type="submit"
+            className="ml-2 bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded-md shadow-md"
+          >
+            Search
+          </button>
+        </form>
 
         {/* Country Dropdown and Preferences */}
         <div className="flex items-center gap-4">
-          <Link
-            to="/search"
-            className="bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded-md shadow-md"
-          >
-            Customize Feed
-          </Link>
+          {showCustomizeFeedButton && (
+            <Link
+              to="/search"
+              className="bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded-md shadow-md"
+            >
+              Customize Feed
+            </Link>
+          )}
 
           {/* Custom Dropdown */}
           <div className="relative">
@@ -101,7 +126,7 @@ function Header({ onCountryChange, onPreferencesSave }) {
             {isDropdownOpen && (
               <div className="absolute top-full left-0 mt-2 bg-white text-black shadow-md rounded-md z-10">
                 {countries
-                  .filter((country) => country.value !== selectedCountry) // Exclude selected country
+                  .filter((country) => country.value !== selectedCountry)
                   .map((country) => (
                     <div
                       key={country.value}
@@ -119,7 +144,8 @@ function Header({ onCountryChange, onPreferencesSave }) {
               </div>
             )}
           </div>
-          {/* set Prefrences Icon  */}
+
+          {/* Set Preferences Icon  */}
           {showPreferencesButton && (
             <button
               onClick={handlePreferencesClick}
@@ -128,11 +154,13 @@ function Header({ onCountryChange, onPreferencesSave }) {
               <img
                 className="w-7 h-7 rounded-full"
                 src="https://tse2.mm.bing.net/th?id=OIP.wX2pd1wOdEsuyI8yRQlCpQHaHa&pid=Api&P=0&h=180"
+                alt="Preferences"
               />
             </button>
           )}
         </div>
       </div>
+
       {/* Modal Popup for Preferences */}
       <PreferencesModal
         isOpen={isPreferencesModalOpen}

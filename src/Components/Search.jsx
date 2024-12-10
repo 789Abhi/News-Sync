@@ -1,18 +1,33 @@
-import React, { useState } from "react";
-import "react-date-range/dist/styles.css"; // Main stylesheet for react-date-range
-import "react-date-range/dist/theme/default.css"; // Theme styles for react-date-range
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useLocation } from "react-router-dom";
+import { searchNews, clearSearchResults } from "../redux/newsSlice";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
 import { DateRangePicker } from "react-date-range";
 
 function Search() {
-  const [keyword, setKeyword] = useState("");
+  const dispatch = useDispatch();
+  const location = useLocation();
+  const searchResults = useSelector((state) => state.news.searchResults);
+
+  // Get initial search term from navigation state or default to empty string
+  const [keyword, setKeyword] = useState(location.state?.searchTerm || "");
+
   const [categories, setCategories] = useState([]);
   const [sources, setSources] = useState([]);
+
+  // Initialize dateRange without setting default dates
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(),
-    endDate: new Date(),
+    startDate: null,
+    endDate: null,
     key: "selection",
   });
-  const [openDropdown, setOpenDropdown] = useState(null); // Tracks the open dropdown or date picker
+
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [filteredResults, setFilteredResults] = useState([]);
+  const [isFilterApplied, setIsFilterApplied] = useState(false);
+  const [isSearchPerformed, setIsSearchPerformed] = useState(false);
 
   const categoryOptions = [
     "Technology",
@@ -33,28 +48,93 @@ function Search() {
     setOpenDropdown((prev) => (prev === dropdownKey ? null : dropdownKey));
   };
 
-  const handleSelectChange = (type, selectedOptions) => {
-    if (type === "category") {
-      setCategories(selectedOptions);
-    } else if (type === "source") {
-      setSources(selectedOptions);
-    }
-  };
-
-  const handleSave = (type) => {
-    if (type === "category") {
-      setOpenDropdown(null); // Close the category dropdown
-    } else if (type === "source") {
-      setOpenDropdown(null); // Close the source dropdown
-    }
-  };
-
   const handleSearch = () => {
-    const startDate = dateRange.startDate.toISOString().split("T")[0];
-    const endDate = dateRange.endDate.toISOString().split("T")[0];
+    // Clear any previous search results first
+    dispatch(clearSearchResults());
 
-    console.log({ keyword, categories, sources, startDate, endDate });
-    // Perform the final search/filter logic here with all the collected data
+    // If keyword is empty, do nothing
+    if (!keyword.trim()) return;
+
+    // Dispatch search action with keyword
+    dispatch(searchNews(keyword));
+
+    // Mark search as performed
+    setIsSearchPerformed(true);
+    // Reset filter-related states
+    setIsFilterApplied(false);
+    setFilteredResults([]);
+  };
+
+  // Apply filters and update results
+  const applyFilters = () => {
+    // Check if any filter is applied
+    const hasFilters =
+      categories.length > 0 ||
+      sources.length > 0 ||
+      (dateRange.startDate && dateRange.endDate);
+
+    if (hasFilters) {
+      // Filter results based on selected criteria
+      const filtered = searchResults.filter((article) => {
+        // Category filter
+        const categoryMatch =
+          categories.length === 0 ||
+          (article.category &&
+            categories.some(
+              (cat) => article.category.toLowerCase() === cat.toLowerCase()
+            ));
+
+        // Source filter
+        const sourceMatch =
+          sources.length === 0 ||
+          sources.some((src) =>
+            article.source.name.toLowerCase().includes(src.toLowerCase())
+          );
+
+        // Date range filter
+        const publishDate = new Date(article.publishedAt);
+        const dateMatch =
+          !dateRange.startDate ||
+          !dateRange.endDate ||
+          (publishDate >= dateRange.startDate &&
+            publishDate <= dateRange.endDate);
+
+        return categoryMatch && sourceMatch && dateMatch;
+      });
+
+      setFilteredResults(filtered);
+      setIsFilterApplied(true);
+    } else {
+      // If no filters, show all search results
+      setFilteredResults(searchResults);
+      setIsFilterApplied(false);
+    }
+  };
+
+  // Apply filters when search results or filter options change
+  useEffect(() => {
+    if (searchResults && searchResults.length > 0) {
+      applyFilters();
+    }
+  }, [searchResults, categories, sources, dateRange]);
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
+
+  // Reset filters
+  const resetFilters = () => {
+    setCategories([]);
+    setSources([]);
+    setDateRange({
+      startDate: null,
+      endDate: null,
+      key: "selection",
+    });
+    setIsFilterApplied(false);
+    setFilteredResults([]);
   };
 
   return (
@@ -66,12 +146,14 @@ function Search() {
         <div>
           <input
             type="text"
-            placeholder="Keyword"
+            placeholder="Search news articles..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
+            onKeyPress={handleKeyPress}
             className="border p-2 rounded w-full"
           />
         </div>
+        {/* Category Dropdown */}
         <div className="relative">
           <button
             onClick={() => handleDropdownToggle("category")}
@@ -121,7 +203,7 @@ function Search() {
                 </div>
               ))}
               <button
-                onClick={() => handleSave("category")}
+                onClick={() => handleDropdownToggle("category")}
                 className="w-full bg-blue-600 text-white p-2 rounded mt-2 hover:bg-blue-700 focus:outline-none"
               >
                 Save
@@ -129,6 +211,8 @@ function Search() {
             </div>
           )}
         </div>
+
+        {/* Sources Dropdown */}
         <div className="relative">
           <button
             onClick={() => handleDropdownToggle("source")}
@@ -178,7 +262,7 @@ function Search() {
                 </div>
               ))}
               <button
-                onClick={() => handleSave("source")}
+                onClick={() => handleDropdownToggle("source")}
                 className="w-full bg-blue-600 text-white p-2 rounded mt-2 hover:bg-blue-700 focus:outline-none"
               >
                 Save
@@ -186,6 +270,8 @@ function Search() {
             </div>
           )}
         </div>
+
+        {/* Date Range Picker */}
         <div className="relative">
           <button
             onClick={() => handleDropdownToggle("datePicker")}
@@ -204,7 +290,7 @@ function Search() {
                 className="rounded border p-2 w-full bg-white justify-between"
               />
               <button
-                onClick={() => setOpenDropdown(null)} // Close date picker on save
+                onClick={() => setOpenDropdown(null)}
                 className="mt-2 w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 focus:outline-none"
               >
                 Save
@@ -213,12 +299,73 @@ function Search() {
           )}
         </div>
       </div>
-      <button
-        onClick={handleSearch}
-        className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring focus:ring-blue-300"
-      >
-        Search
-      </button>
+
+      <div className="flex items-center mt-6 space-x-4">
+        <button
+          onClick={handleSearch}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring focus:ring-blue-300"
+        >
+          Search
+        </button>
+
+        {/* Reset Filters Button - Only show if filters are applied */}
+        {isFilterApplied && (
+          <button
+            onClick={resetFilters}
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none"
+          >
+            Reset Filters
+          </button>
+        )}
+      </div>
+
+      {/* Display Results */}
+      <div className="mt-8">
+        <h3 className="text-2xl font-bold mb-4 text-white">
+          {isFilterApplied ? "Filtered" : "Search"} Results (
+          {filteredResults.length})
+        </h3>
+        {filteredResults.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredResults.map((article, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-lg shadow-md overflow-hidden"
+              >
+                {article.urlToImage && (
+                  <img
+                    src={article.urlToImage}
+                    alt={article.title}
+                    className="w-full h-48 object-cover"
+                  />
+                )}
+                <div className="p-4">
+                  <h4 className="font-bold text-lg mb-2">{article.title}</h4>
+                  <p className="text-gray-600 text-sm mb-2">
+                    {article.source.name} |{" "}
+                    {new Date(article.publishedAt).toLocaleDateString()}
+                  </p>
+                  <p className="text-gray-700 text-sm">{article.description}</p>
+                  <a
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-blue-600 hover:underline"
+                  >
+                    Read More
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-white">
+            {searchResults && searchResults.length > 0
+              ? "No results found. Try adjusting your filters."
+              : "Perform a search to view results."}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

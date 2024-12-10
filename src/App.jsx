@@ -6,6 +6,7 @@ import Search from "./Components/Search";
 import Home from "./Components/Home";
 import Header from "./Components/Header";
 import { store } from "./redux/store";
+import SearchResults from "./Components/SearchResults";
 
 function App() {
   return (
@@ -21,7 +22,14 @@ function App() {
             <Header />
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/search" element={<Search />} />
+              <Route
+                path="/search"
+                element={
+                  <>
+                    <Search />
+                  </>
+                }
+              />
             </Routes>
           </div>
         </Router>
