@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation } from "react-router-dom";
-import { searchNews, clearSearchResults } from "../redux/newsSlice";
+import { searchNews, clearSearchResults, fetchNews } from "../redux/newsSlice";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import { DateRangePicker } from "react-date-range";
@@ -10,88 +10,88 @@ function Search() {
   const dispatch = useDispatch();
   const location = useLocation();
   const searchResults = useSelector((state) => state.news.searchResults);
+  const newsResults = useSelector((state) => state.news.news);
+  const newsStatus = useSelector((state) => state.news.status);
 
-  // Get initial search term from navigation state or default to empty string
   const [keyword, setKeyword] = useState(location.state?.searchTerm || "");
-
   const [categories, setCategories] = useState([]);
   const [sources, setSources] = useState([]);
-
-  // Initialize dateRange without setting default dates
   const [dateRange, setDateRange] = useState({
     startDate: null,
     endDate: null,
     key: "selection",
   });
-
   const [openDropdown, setOpenDropdown] = useState(null);
   const [filteredResults, setFilteredResults] = useState([]);
   const [isFilterApplied, setIsFilterApplied] = useState(false);
   const [isSearchPerformed, setIsSearchPerformed] = useState(false);
 
   const categoryOptions = [
-    "Technology",
     "Business",
-    "Health",
-    "Sports",
     "Entertainment",
+    "General",
+    "Health",
+    "Science",
+    "Sports",
+    "Technology",
   ];
-  const sourceOptions = [
-    "BBC",
-    "CNN",
-    "Reuters",
-    "Al Jazeera",
-    "The New York Times",
-  ];
+
+  const staticSources = ["NYTimes", "CBZ News", "BBC", "Reuters", "Al Jazeera"];
+
+  const getSourceOptions = () => {
+    const allResults = [...(searchResults || []), ...(newsResults || [])];
+    return [
+      ...new Set(allResults.map((article) => article.source.name)),
+    ].concat(staticSources);
+  };
+
+  useEffect(() => {
+    if (newsStatus === "idle") {
+      dispatch(fetchNews());
+    }
+  }, [dispatch, newsStatus]);
 
   const handleDropdownToggle = (dropdownKey) => {
     setOpenDropdown((prev) => (prev === dropdownKey ? null : dropdownKey));
   };
 
   const handleSearch = () => {
-    // Clear any previous search results first
     dispatch(clearSearchResults());
-
-    // If keyword is empty, do nothing
-    if (!keyword.trim()) return;
-
-    // Dispatch search action with keyword
-    dispatch(searchNews(keyword));
-
-    // Mark search as performed
+    if (!keyword.trim()) {
+      dispatch(fetchNews());
+    } else {
+      dispatch(searchNews(keyword));
+    }
     setIsSearchPerformed(true);
-    // Reset filter-related states
     setIsFilterApplied(false);
     setFilteredResults([]);
   };
 
-  // Apply filters and update results
   const applyFilters = () => {
-    // Check if any filter is applied
+    const baseResults = searchResults.length > 0 ? searchResults : newsResults;
     const hasFilters =
       categories.length > 0 ||
       sources.length > 0 ||
       (dateRange.startDate && dateRange.endDate);
 
-    if (hasFilters) {
-      // Filter results based on selected criteria
-      const filtered = searchResults.filter((article) => {
-        // Category filter
+    if (hasFilters && baseResults) {
+      const filtered = baseResults.filter((article) => {
         const categoryMatch =
           categories.length === 0 ||
           (article.category &&
             categories.some(
               (cat) => article.category.toLowerCase() === cat.toLowerCase()
-            ));
+            )) ||
+          categories.some((cat) =>
+            article.source.name.toLowerCase().includes(cat.toLowerCase())
+          );
 
-        // Source filter
         const sourceMatch =
           sources.length === 0 ||
           sources.some((src) =>
             article.source.name.toLowerCase().includes(src.toLowerCase())
           );
 
-        // Date range filter
         const publishDate = new Date(article.publishedAt);
         const dateMatch =
           !dateRange.startDate ||
@@ -105,18 +105,19 @@ function Search() {
       setFilteredResults(filtered);
       setIsFilterApplied(true);
     } else {
-      // If no filters, show all search results
-      setFilteredResults(searchResults);
+      setFilteredResults(baseResults || []);
       setIsFilterApplied(false);
     }
   };
 
-  // Apply filters when search results or filter options change
   useEffect(() => {
-    if (searchResults && searchResults.length > 0) {
+    if (
+      (searchResults && searchResults.length > 0) ||
+      (newsResults && newsResults.length > 0)
+    ) {
       applyFilters();
     }
-  }, [searchResults, categories, sources, dateRange]);
+  }, [searchResults, newsResults, categories, sources, dateRange]);
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter") {
@@ -124,17 +125,42 @@ function Search() {
     }
   };
 
-  // Reset filters
   const resetFilters = () => {
     setCategories([]);
     setSources([]);
-    setDateRange({
-      startDate: null,
-      endDate: null,
-      key: "selection",
-    });
+    setDateRange({ startDate: null, endDate: null, key: "selection" });
     setIsFilterApplied(false);
     setFilteredResults([]);
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const options = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    };
+    const formattedDate = date.toLocaleDateString(undefined, options);
+
+    const now = new Date();
+    const diffInHours = Math.round((now - date) / (1000 * 60 * 60));
+    let timeAgo = "";
+
+    if (diffInHours < 24) {
+      timeAgo = `${diffInHours} hour${diffInHours !== 1 ? "s" : ""} ago`;
+    }
+
+    return (
+      <div className="text-sm text-gray-600 mb-2">
+        <span className="font-semibold">{formattedDate}</span>
+        {timeAgo && (
+          <span className="ml-2 bg-blue-100 px-2 py-1 rounded-full">
+            {timeAgo}
+          </span>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -166,7 +192,7 @@ function Search() {
               {categoryOptions.map((option) => (
                 <div
                   key={option}
-                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center   ${
+                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center ${
                     categories.includes(option) ? "bg-gray-200" : ""
                   }`}
                   onClick={() => {
@@ -178,7 +204,7 @@ function Search() {
                   }}
                 >
                   <span
-                    className={` flex w-4 h-4 rounded-full mr-2 ${
+                    className={`flex w-4 h-4 rounded-full mr-2 ${
                       categories.includes(option)
                         ? "bg-blue-500"
                         : "bg-transparent border border-gray-300"
@@ -222,10 +248,10 @@ function Search() {
           </button>
           {openDropdown === "source" && (
             <div className="absolute mt-1 w-full bg-white border border-gray-300 text-black rounded-md shadow-md z-10">
-              {sourceOptions.map((option) => (
+              {getSourceOptions().map((option) => (
                 <div
                   key={option}
-                  className={`px-4 py-2 cursor-pointer flex items-center hover:bg-gray-100 ${
+                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 flex items-center ${
                     sources.includes(option) ? "bg-gray-200" : ""
                   }`}
                   onClick={() => {
@@ -274,98 +300,68 @@ function Search() {
         {/* Date Range Picker */}
         <div className="relative">
           <button
-            onClick={() => handleDropdownToggle("datePicker")}
-            className="rounded border p-2 w-full bg-gray-200"
+            onClick={() => handleDropdownToggle("dateRange")}
+            className="w-full text-left border border-gray-300 bg-white text-black p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {openDropdown === "datePicker"
-              ? "Hide Date Picker"
+            {dateRange.startDate && dateRange.endDate
+              ? `${dateRange.startDate.toLocaleDateString()} - ${dateRange.endDate.toLocaleDateString()}`
               : "Select Date Range"}
           </button>
-          {openDropdown === "datePicker" && (
-            <div className="absolute left-0 top-full mt-2 w-full z-10">
-              <label className="block text-white mb-1">Select Date Range</label>
-              <DateRangePicker
-                ranges={[dateRange]}
-                onChange={(ranges) => setDateRange(ranges.selection)}
-                className="rounded border p-2 w-full bg-white justify-between"
-              />
-              <button
-                onClick={() => setOpenDropdown(null)}
-                className="mt-2 w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 focus:outline-none"
-              >
-                Save
-              </button>
-            </div>
+          {openDropdown === "dateRange" && (
+            <DateRangePicker
+              onChange={(item) => setDateRange(item.selection)}
+              showDateDisplay={false}
+              moveRangeOnFirstSelection={false}
+              ranges={[dateRange]}
+              className="absolute mt-1 bg-white border border-gray-300 text-black rounded-md shadow-md z-10"
+            />
           )}
         </div>
       </div>
 
-      <div className="flex items-center mt-6 space-x-4">
+      <button
+        onClick={handleSearch}
+        className="mt-4 w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 focus:outline-none"
+      >
+        Search
+      </button>
+
+      {isFilterApplied && (
         <button
-          onClick={handleSearch}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring focus:ring-blue-300"
+          onClick={resetFilters}
+          className="mt-2 w-full bg-gray-400 text-white p-2 rounded-md hover:bg-gray-500 focus:outline-none"
         >
-          Search
+          Reset Filters
         </button>
+      )}
 
-        {/* Reset Filters Button - Only show if filters are applied */}
-        {isFilterApplied && (
-          <button
-            onClick={resetFilters}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 focus:outline-none"
-          >
-            Reset Filters
-          </button>
-        )}
-      </div>
+      {isSearchPerformed && filteredResults.length === 0 && (
+        <p className="mt-4 text-center text-gray-600">
+          No results found for "{keyword}"
+        </p>
+      )}
 
-      {/* Display Results */}
-      <div className="mt-8">
-        <h3 className="text-2xl font-bold mb-4 text-white">
-          {isFilterApplied ? "Filtered" : "Search"} Results (
-          {filteredResults.length})
-        </h3>
-        {filteredResults.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredResults.map((article, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-lg shadow-md overflow-hidden"
+      {isSearchPerformed && filteredResults.length > 0 && (
+        <div className="mt-8">
+          {filteredResults.map((article, index) => (
+            <div key={index} className="mb-6 p-4 bg-white rounded-lg shadow-md">
+              <h3 className="text-xl font-bold mb-2">{article.title}</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                {article.description}
+              </p>
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
               >
-                {article.urlToImage && (
-                  <img
-                    src={article.urlToImage}
-                    alt={article.title}
-                    className="w-full h-48 object-cover"
-                  />
-                )}
-                <div className="p-4">
-                  <h4 className="font-bold text-lg mb-2">{article.title}</h4>
-                  <p className="text-gray-600 text-sm mb-2">
-                    {article.source.name} |{" "}
-                    {new Date(article.publishedAt).toLocaleDateString()}
-                  </p>
-                  <p className="text-gray-700 text-sm">{article.description}</p>
-                  <a
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-blue-600 hover:underline"
-                  >
-                    Read More
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-white">
-            {searchResults && searchResults.length > 0
-              ? "No results found. Try adjusting your filters."
-              : "Perform a search to view results."}
-          </p>
-        )}
-      </div>
+                Read more
+              </a>
+              {formatDate(article.publishedAt)}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

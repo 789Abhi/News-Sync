@@ -6,7 +6,6 @@ import Search from "./Components/Search";
 import Home from "./Components/Home";
 import Header from "./Components/Header";
 import { store } from "./redux/store";
-import SearchResults from "./Components/SearchResults";
 
 function App() {
   return (

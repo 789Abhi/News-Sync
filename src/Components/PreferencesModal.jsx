@@ -1,13 +1,31 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { setUserPreferences, clearUserPreferences } from "../redux/newsSlice";
 
-function PreferencesModal({ isOpen, onClose, onSave }) {
+function PreferencesModal({ isOpen, onClose }) {
+  const dispatch = useDispatch();
+  const currentPreferences = useSelector((state) => state.news.preferences);
+
   const [categories, setCategories] = useState([]);
   const [sources, setSources] = useState([]);
   const [authors, setAuthors] = useState([]);
-  const [openDropdown, setOpenDropdown] = useState(null); // Track which dropdown is open
+  const [openDropdown, setOpenDropdown] = useState(null);
+
+  // Load preferences from localStorage on component mount
+  useEffect(() => {
+    const savedPreferences = localStorage.getItem("userNewsPreferences");
+    if (savedPreferences) {
+      const parsedPreferences = JSON.parse(savedPreferences);
+      setCategories(parsedPreferences.categories || []);
+      setSources(parsedPreferences.sources || []);
+      setAuthors(parsedPreferences.authors || []);
+    }
+  }, []);
 
   const handleSave = () => {
-    onSave({ categories, sources, authors });
+    const preferences = { categories, sources, authors };
+    dispatch(setUserPreferences(preferences));
+    localStorage.setItem("userNewsPreferences", JSON.stringify(preferences));
     onClose();
   };
 
@@ -15,6 +33,9 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
     setCategories([]);
     setSources([]);
     setAuthors([]);
+    dispatch(clearUserPreferences());
+    localStorage.removeItem("userNewsPreferences");
+    onClose();
   };
 
   const toggleSelection = (value, selectedList, setSelectedList) => {
@@ -33,10 +54,10 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
         }
         className="w-full text-left border border-gray-300 bg-white text-black p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-        {title}
+        {title} ({selected.length > 0 ? selected.length : "All"})
       </button>
       {openDropdown === dropdownKey && (
-        <div className="absolute mt-1 w-full bg-white border border-gray-300 text-black rounded-md shadow-md z-10">
+        <div className="absolute mt-1 w-full bg-white border border-gray-300 text-black rounded-md shadow-md z-10 max-h-60 overflow-y-auto">
           {options.map((option) => (
             <div
               key={option}
@@ -56,7 +77,7 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
               onClick={() => setOpenDropdown(null)}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              Save
+              Close
             </button>
           </div>
         </div>
@@ -94,6 +115,8 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
               "Health",
               "Sports",
               "Entertainment",
+              "Science",
+              "General",
             ]}
             selected={categories}
             setSelected={setCategories}
@@ -107,6 +130,8 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
               "Reuters",
               "Al Jazeera",
               "The New York Times",
+              "Associated Press",
+              "Bloomberg",
             ]}
             selected={sources}
             setSelected={setSources}
@@ -114,7 +139,15 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
           />
           <Dropdown
             title="Select Authors"
-            options={["Author 1", "Author 2", "Author 3", "Author 4"]}
+            options={[
+              "Author 1",
+              "Author 2",
+              "Author 3",
+              "Author 4",
+              "Jane Doe",
+              "John Smith",
+              "Tech Journalist",
+            ]}
             selected={authors}
             setSelected={setAuthors}
             dropdownKey="authors"
@@ -129,6 +162,9 @@ function PreferencesModal({ isOpen, onClose, onSave }) {
             </button>
             <button
               onClick={handleSave}
+              disabled={
+                !categories.length && !sources.length && !authors.length
+              }
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Save Preferences

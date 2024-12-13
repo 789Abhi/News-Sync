@@ -1,64 +1,49 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { searchNews, clearSearchResults } from "../redux/newsSlice"; // Adjust import path
+import { useDispatch, useSelector } from "react-redux";
+import {
+  searchNews,
+  clearSearchResults,
+  setCurrentCountry,
+} from "../redux/newsSlice";
 import PreferencesModal from "./PreferencesModal";
 
-function Header({ onCountryChange, onPreferencesSave }) {
+function Header() {
+  const dispatch = useDispatch();
+  const currentCountry = useSelector((state) => state.news.currentCountry);
   const countries = [
     {
       value: "all",
       label: "All",
       flag: "https://tse3.mm.bing.net/th?id=OIP.TvFyTKnIpVLfvTS0F4Z12gHaHa&pid=Api&P=0&h=180",
     },
-    { value: "in", label: "IND", flag: "https://flagcdn.com/in.svg" },
-    { value: "us", label: "USA", flag: "https://flagcdn.com/us.svg" },
-    { value: "uk", label: "UK", flag: "https://flagcdn.com/gb.svg" },
-    { value: "au", label: "AUS", flag: "https://flagcdn.com/au.svg" },
-    { value: "ca", label: "CAN", flag: "https://flagcdn.com/ca.svg" },
+    { value: "in", label: "IND", flag: "https://flagcdn.com/w320/in.png" },
+    { value: "us", label: "USA", flag: "https://flagcdn.com/w320/us.png" },
+    { value: "gb", label: "UK", flag: "https://flagcdn.com/w320/gb.png" },
+    { value: "au", label: "AUS", flag: "https://flagcdn.com/w320/au.png" },
+    { value: "ca", label: "CAN", flag: "https://flagcdn.com/w320/ca.png" },
   ];
 
-  const [selectedCountry, setSelectedCountry] = useState(countries[0].value);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
 
-  useEffect(() => {
-    if (onCountryChange) {
-      onCountryChange(selectedCountry);
-    }
-  }, [selectedCountry, onCountryChange]);
+  const currentCountryObj =
+    countries.find((c) => c.value === currentCountry) || countries[0];
 
-  const handleCountrySelect = (country) => {
-    setSelectedCountry(country);
-    if (onCountryChange) {
-      onCountryChange(country.value);
-    }
+  const handleCountrySelect = (countryValue) => {
+    dispatch(setCurrentCountry(countryValue));
     setIsDropdownOpen(false);
-  };
-
-  const handlePreferencesClick = () => {
-    setIsPreferencesModalOpen(true);
-  };
-
-  const handlePreferencesSave = (preferences) => {
-    if (onPreferencesSave) {
-      onPreferencesSave(preferences);
-    }
-    setIsPreferencesModalOpen(false);
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
-
     if (!searchTerm.trim()) return;
-
     dispatch(clearSearchResults());
-    dispatch(searchNews(searchTerm));
-    navigate("/search", { state: { searchTerm } }); // Pass search term in navigation state
+    dispatch(searchNews({ searchTerm, country: currentCountry }));
+    navigate("/search", { state: { searchTerm } });
   };
 
   const showSearchInput = location.pathname !== "/search";
@@ -72,6 +57,7 @@ function Header({ onCountryChange, onPreferencesSave }) {
           <h1 className="text-2xl font-bold">NEWS SYNC</h1>
         </Link>
 
+        {/* Search Form */}
         <form
           onSubmit={handleSearch}
           className={`flex items-center w-[600px] ${
@@ -93,8 +79,9 @@ function Header({ onCountryChange, onPreferencesSave }) {
           </button>
         </form>
 
-        {/* Country Dropdown and Preferences */}
+        {/* Country and Preferences Section */}
         <div className="flex items-center gap-4">
+          {/* Customize Feed Button */}
           {showCustomizeFeedButton && (
             <Link
               to="/search"
@@ -104,7 +91,7 @@ function Header({ onCountryChange, onPreferencesSave }) {
             </Link>
           )}
 
-          {/* Custom Dropdown */}
+          {/* Country Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -112,13 +99,11 @@ function Header({ onCountryChange, onPreferencesSave }) {
             >
               <div className="flex items-center gap-2">
                 <img
-                  src={countries.find((c) => c.value === selectedCountry)?.flag}
+                  src={currentCountryObj.flag}
                   alt="Selected Country"
                   className="w-6 h-6 rounded-full"
                 />
-                <span>
-                  {countries.find((c) => c.value === selectedCountry)?.label}
-                </span>
+                <span>{currentCountryObj.label}</span>
               </div>
               <span className="ml-2 text-xs">▼</span>
             </button>
@@ -126,7 +111,7 @@ function Header({ onCountryChange, onPreferencesSave }) {
             {isDropdownOpen && (
               <div className="absolute top-full left-0 mt-2 bg-white text-black shadow-md rounded-md z-10">
                 {countries
-                  .filter((country) => country.value !== selectedCountry)
+                  .filter((country) => country.value !== currentCountry)
                   .map((country) => (
                     <div
                       key={country.value}
@@ -145,10 +130,10 @@ function Header({ onCountryChange, onPreferencesSave }) {
             )}
           </div>
 
-          {/* Set Preferences Icon  */}
+          {/* Preferences Button */}
           {showPreferencesButton && (
             <button
-              onClick={handlePreferencesClick}
+              onClick={() => setIsPreferencesModalOpen(true)}
               className="bg-purple-500 flex items-center hover:bg-purple-700 text-white px-4 py-2 rounded-md shadow-md"
             >
               <img
@@ -161,11 +146,10 @@ function Header({ onCountryChange, onPreferencesSave }) {
         </div>
       </div>
 
-      {/* Modal Popup for Preferences */}
+      {/* Preferences Modal */}
       <PreferencesModal
         isOpen={isPreferencesModalOpen}
         onClose={() => setIsPreferencesModalOpen(false)}
-        onSave={handlePreferencesSave}
       />
     </header>
   );
